@@ -1,6 +1,7 @@
 #include <iostream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
+#include "opencv2/imgproc/imgproc.hpp"
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 #include <fstream>
@@ -97,7 +98,22 @@ int main ( int argc, char** argv )
     }
 
     int num=0;
+    Mat R_f, t_f; //the final rotation and tranlation vectors containing the
+    double scale = 1.00;
+    char text[100];
+    int fontFace = FONT_HERSHEY_PLAIN;
+    double fontScale = 1;
+    int thickness = 1;
+    cv::Point textOrg(10, 50);
+    clock_t begin = clock();
 
+
+    namedWindow( "Road facing camera", WINDOW_AUTOSIZE );// Create a window for display.
+    namedWindow( "Trajectory", WINDOW_AUTOSIZE );// Create a window for display.
+    Mat traj = Mat::zeros(600, 600, CV_8UC3);
+
+    R_f =Mat::eye( 3, 3,CV_64FC1 );//    Mat K = ( Mat_<double> ( 3,3 ) <<1360.741577148438, 0,, 0, 0, 1 );
+    t_f = ( Mat_<double> ( 3,1 ) <<0.0, 0.0, 0.0 );
     while(getline(myfile,img_1_name))//    while(1)
     {
         num++;
@@ -117,6 +133,9 @@ int main ( int argc, char** argv )
 //        Mat img_1 = imread ("../left/"+img_temp, CV_LOAD_IMAGE_COLOR );//sll
 //        Mat img_2 = imread ("../left/"+img_1_name, CV_LOAD_IMAGE_COLOR );//sll
 //        cout<<"../left/"+img_temp<<" "<<"../left/"+img_1_name<<endl;//sll
+        if ( !img_1.data || !img_2.data ) {
+            std::cout<< " --(!) Error reading images " << std::endl; return -1;
+        }
 
 //    imshow("w1 ",img_1);
 //    imshow("w2 ",img_2);
@@ -128,10 +147,10 @@ int main ( int argc, char** argv )
 
     //-- 估计两张图像间运动
     Mat R,t;
-    pose_estimation_2d2d ( keypoints_1, keypoints_2, matches, R, t );
+//    pose_estimation_2d2d ( keypoints_1, keypoints_2, matches, R, t );
 
-//    int E_empty;int RANSAC_outlier; int cam_front;double cam_front_raito;
-//    pose_estimation_2d2d_s (keypoints_1, keypoints_2, matches, R, t,E_empty,RANSAC_outlier,cam_front,cam_front_raito);
+    int E_empty;int RANSAC_outlier; int cam_front;double cam_front_raito;
+    pose_estimation_2d2d_s (keypoints_1, keypoints_2, matches, R, t,E_empty,RANSAC_outlier,cam_front,cam_front_raito);
 
     //TODO
 
@@ -165,20 +184,44 @@ int main ( int argc, char** argv )
         cout<<"t "<<t<<endl;
 //        fout_c<<img_1_name << " "<<fixed<<t.at<double>(0) << " " <<t.at<double>(1)<< " " <<t.at<double>(2) <<endl;
 
-        fout_c<<img_1_name << " "<<fixed<<t.at<double>(0) << " " <<t.at<double>(1)<< " " <<t.at<double>(2)<< " " \
-                <<R.at<double> ( 0,0 )<<" "<<R.at<double> ( 0,1 )<<" "<<R.at<double> ( 0,2 )<<" "\
-                        <<R.at<double> ( 1,0 )<< " " <<R.at<double> ( 1,1 )<< " " <<R.at<double> ( 1,2 )<< " " \
-                                <<R.at<double> ( 2,0 )<< " " <<R.at<double> ( 2,1 )<< " " <<R.at<double> ( 2,2 )<<endl;
-
 //        fout_c<<img_1_name << " "<<fixed<<t.at<double>(0) << " " <<t.at<double>(1)<< " " <<t.at<double>(2)<< " " \
 //                <<R.at<double> ( 0,0 )<<" "<<R.at<double> ( 0,1 )<<" "<<R.at<double> ( 0,2 )<<" "\
 //                        <<R.at<double> ( 1,0 )<< " " <<R.at<double> ( 1,1 )<< " " <<R.at<double> ( 1,2 )<< " " \
-//                                <<R.at<double> ( 2,0 )<< " " <<R.at<double> ( 2,1 )<< " " <<R.at<double> ( 2,2 )<< " " \
-//                                        << matches.size() <<" "<<E_empty<<" "<<RANSAC_outlier<<" "<<cam_front<<" "<<cam_front_raito<<endl;
+//                                <<R.at<double> ( 2,0 )<< " " <<R.at<double> ( 2,1 )<< " " <<R.at<double> ( 2,2 )<<endl;
 
+        fout_c<<img_1_name << " "<<fixed<<t.at<double>(0) << " " <<t.at<double>(1)<< " " <<t.at<double>(2)<< " " \
+                <<R.at<double> ( 0,0 )<<" "<<R.at<double> ( 0,1 )<<" "<<R.at<double> ( 0,2 )<<" "\
+                        <<R.at<double> ( 1,0 )<< " " <<R.at<double> ( 1,1 )<< " " <<R.at<double> ( 1,2 )<< " " \
+                                <<R.at<double> ( 2,0 )<< " " <<R.at<double> ( 2,1 )<< " " <<R.at<double> ( 2,2 )<< " " \
+                                        << matches.size() <<" "<<E_empty<<" "<<RANSAC_outlier<<" "<<cam_front<<" "<<cam_front_raito<<endl;
+
+
+        if ((scale>0.1)&&(t.at<double>(2) > t.at<double>(0)) && (t.at<double>(2) > t.at<double>(1))) {
+
+            t_f = t_f + scale*(R_f*t);
+            R_f = R*R_f;
+
+        }
+
+        int x = int(t_f.at<double>(0)) + 300;
+        int y = int(t_f.at<double>(2)) + 100;
+        circle(traj, Point(x, y) ,1, CV_RGB(255,0,0), 2);
+
+        rectangle( traj, Point(10, 30), Point(550, 50), CV_RGB(0,0,0), CV_FILLED);
+        sprintf(text, "Coordinates: x = %02fm y = %02fm z = %02fm", t_f.at<double>(0), t_f.at<double>(1), t_f.at<double>(2));
+        putText(traj, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 8);
+
+        imshow( "Road facing camera", img_2);
+        imshow( "Trajectory", traj );
+
+        waitKey(1);
     }
     myfile.close();
     fout_c.close();
+
+    clock_t end = clock();
+    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Total time taken: " << elapsed_secs << "s" << endl;
     return 0;
 }
 
@@ -387,7 +430,7 @@ void pose_estimation_2d2d_s ( std::vector<KeyPoint> keypoints_1,
 
     Mat mask;// https://blog.csdn.net/qq_26499769/article/details/51817254  //本质矩阵
 //    Mat essential_matrix= findEssentialMat(points1, points2, focal_length, principal_point, RANSAC, 0.999, 1.0, mask);
-    Mat essential_matrix= findEssentialMat(points1, points2, focal_length, principal_point,RANSAC,0.999,6.0,mask);//MEDS
+    Mat essential_matrix= findEssentialMat(points2, points1, focal_length, principal_point,RANSAC,0.999,6.0,mask);//MEDS
     E_empty=0;
     if (essential_matrix.empty())
         E_empty=1;//cout<<"essential_matrix "<<endl; //    if (E.empty()) return false;
@@ -417,7 +460,7 @@ void pose_estimation_2d2d_s ( std::vector<KeyPoint> keypoints_1,
 //    cam_front_raito=((double)pass_count) / feasible_count;
 
     //同时位于两个相机前方的点的数量要足够大
-    int pass_count = recoverPose ( essential_matrix, points1, points2, R, t, focal_length, principal_point, mask);
+    int pass_count = recoverPose ( essential_matrix, points2, points1, R, t, focal_length, principal_point, mask);
     cam_front=0;
     if (((double)pass_count) / feasible_count < 0.7)
     {
