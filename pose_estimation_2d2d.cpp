@@ -165,7 +165,7 @@ int main ( int argc, char** argv )
 
     cout<<"t^R="<<endl<<t_x*R<<endl;
 
-//    //-- 验证对极约束
+//    //-- 验证对极约束 暂时忽略
 //    Mat K = ( Mat_<double> ( 3,3 ) << 1472.09318784, 0, 668.02062312, 0, 1469.89378316, 362.86134410, 0, 0, 1 );
 //    for ( DMatch m: matches )
 //    {
